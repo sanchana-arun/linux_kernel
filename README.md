@@ -1,0 +1,1 @@
+I modified the Linux 6.1 (Long Term Support) version kernel code to stop reboot and file open syscall to log and ask for user approval before proceeding to prevent malicious processes from doing their malicious thingy
