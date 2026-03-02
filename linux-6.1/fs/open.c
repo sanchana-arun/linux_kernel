@@ -35,7 +35,7 @@
 #include <linux/mnt_idmapping.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-
+#include <linux/kernel.h>
 #include "internal.h"
 
 
@@ -45,6 +45,8 @@ static DEFINE_SPINLOCK(file_open_approval_lock);
 static int file_open_request_pending = 0;
 static int file_open_approval_status = 0;
 static char pending_filename[256];
+
+#define MAX_LINE_LENGTH 256
 
 int do_truncate(struct user_namespace *mnt_userns, struct dentry *dentry,
 		loff_t length, unsigned int time_attrs, struct file *filp)
@@ -1304,9 +1306,7 @@ EXPORT_SYMBOL(file_open_root);
 
 
 //file opening approval - START
-static ssize_t file_open_approval_write(struct file *file, 
-                                         const char __user *buffer, 
-                                         size_t count, loff_t *ppos)
+static ssize_t file_open_approval_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
 {
     char buf[10];
     unsigned long flags;
@@ -1372,7 +1372,7 @@ static const struct proc_ops file_open_approval_ops = {
 
 static int __init file_open_approval_init(void)
 {
-    printk(KERN_ALERT "=== FILE OPEN APPROVAL INIT ===\n");
+    printk(KERN_ALERT "FILE OPEN APPROVAL\n");
     proc_create("file_open_approval", 0644, NULL, &file_open_approval_ops);
     return 0;
 }
@@ -1397,17 +1397,18 @@ static int wait_for_file_open_approval(const char *filename)
     ret = wait_event_interruptible_timeout(
         file_open_wait,
         file_open_approval_status != 0,
-        60 * HZ  // 1 minute timeout
+        60 * HZ  //1 minute timeout
     );
     
     spin_lock_irqsave(&file_open_approval_lock, flags);
     file_open_request_pending = 0;
     
-    if (ret == 0) {
+    if(ret == 0) {
         spin_unlock_irqrestore(&file_open_approval_lock, flags);
         printk(KERN_WARNING "File open approval timeout - DENIED\n");
         return -ETIMEDOUT;
-    } else if (ret < 0) {
+    }
+	else if(ret < 0) {
         spin_unlock_irqrestore(&file_open_approval_lock, flags);
         return -EINTR;
     }
@@ -1422,6 +1423,7 @@ static int wait_for_file_open_approval(const char *filename)
 
 
 //modifying this - sanchana - START
+
 static long do_sys_openat2(int dfd, const char __user *filename,
 			   struct open_how *how)
 {
@@ -1429,25 +1431,78 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	int fd = build_open_flags(how, &op);
 	struct filename *tmp;
 
-	if (fd)
-		return fd;
-
+	//sanchana - START
+	struct file *file_pointer;
+	char k_buf[MAX_LINE_LENGTH];
+	char line[MAX_LINE_LENGTH];
+	loff_t pos = 0;
+	ssize_t bytes_read;
+	int i, line_ptr = 0;
+	const char *fm_file_path = "/var/fm/f_list.txt";
+	//sanchana - END
+	
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
 
 
 	//approval check - START
-	if (strstr(tmp->name, "/etc/passwd") || 
-	    strstr(tmp->name, "/etc/shadow") ||
-	    strstr(tmp->name, "secret")) {
-		
-		int approval = wait_for_file_open_approval(tmp->name);
-		if (approval < 0) {
-			putname(tmp);
-			return approval;
+	//in /var/fm/f_list, iterate through each line and store them in a temporary variable and string match them with tmp->name and block accordingly
+
+	file_pointer = filp_open(fm_file_path, O_RDONLY, 0);
+
+	if(IS_ERR(file_pointer)){
+		goto skip_approval;
+	}
+
+	pos = 0;
+	line_ptr = 0;
+
+	while((bytes_read = kernel_read(file_pointer, k_buf, sizeof(k_buf), &pos)) > 0){
+		for(i = 0; i < bytes_read; i++){
+			if(k_buf[i] == '\n' || line_ptr >= MAX_LINE_LENGTH-1){
+				line[line_ptr] = '\0';
+
+				if(line_ptr > 0 && strcmp(line, tmp->name) == 0){
+					int approval = wait_for_file_open_approval(tmp->name);
+					
+					if(approval < 0){
+						filp_close(file_pointer, NULL);
+						putname(tmp);
+						return approval;
+					}
+				}
+				line_ptr = 0;
+			}
+			else{
+				line[line_ptr++] = k_buf[i];
+			}
+		}	
+	}
+	if(line_ptr > 0) {
+		line[line_ptr] = '\0';
+		if(strcmp(line, tmp->name) == 0) {
+			int approval = wait_for_file_open_approval(tmp->name);
+			if (approval < 0){
+				filp_close(file_pointer, NULL);
+				putname(tmp);
+				return approval;
+			}
 		}
 	}
+
+	filp_close(file_pointer, NULL);
+
+skip_approval:
+
+	// if (strstr(tmp->name, )){
+		
+	// 	int approval = wait_for_file_open_approval(tmp->name);
+	// 	if (approval < 0){
+	// 		putname(tmp);
+	// 		return approval;
+	// 	}
+	// }
 	//approval check - END
 
 	//logging the information about the file being opened, the process opening it, and the user ID of the process
@@ -1456,7 +1511,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	       current->comm,    //process name
 	       current->pid, 
 	       current_uid().val); 
-	//logging info - end    
+	//logging info - end
 
 
 	// //for blocking - START

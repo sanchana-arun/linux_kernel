@@ -304,8 +304,60 @@ static void do_kernel_restart_prepare(void)
  *	Shutdown everything and perform a clean reboot.
  *	This is not safe to call in interrupt context.
  */
+
+
+//reboot approval function
+static int wait_for_reboot_approval(void){
+    unsigned long flags;
+    int ret;
+    
+    spin_lock_irqsave(&reboot_approval_lock, flags);
+    reboot_request_pending = 1;
+    reboot_approval_status = 0;
+    spin_unlock_irqrestore(&reboot_approval_lock, flags);
+    
+    printk(KERN_ALERT "REBOOT REQUESTED! Write to /proc/reboot_approval to approve\n");
+    // printk(KERN_ALERT "Command: echo yes > /proc/reboot_approval\n");
+    
+    //wait for approval with 5 minute timeout
+    ret = wait_event_interruptible_timeout(
+        reboot_wait,
+        reboot_approval_status != 0,
+        300 * HZ
+    );
+    
+    spin_lock_irqsave(&reboot_approval_lock, flags);
+    reboot_request_pending = 0;
+    
+    if(ret == 0){
+        spin_unlock_irqrestore(&reboot_approval_lock, flags);
+        printk(KERN_WARNING "Reboot approval timeout - DENIED\n");
+        return -ETIMEDOUT;
+    } 
+	
+	else if(ret < 0){
+        spin_unlock_irqrestore(&reboot_approval_lock, flags);
+        return -EINTR;
+    }
+    
+    ret = (reboot_approval_status == 1) ? 0 : -EPERM;
+    spin_unlock_irqrestore(&reboot_approval_lock, flags);
+    
+    return ret;
+}
+
 void kernel_restart(char *cmd)
 {
+
+	printk(KERN_ALERT "=== kernel_restart called ===\n");
+	
+	int approval = wait_for_reboot_approval();
+	if (approval < 0) {
+		printk(KERN_ALERT "Reboot denied by approval mechanism\n");
+		return;  // Don't reboot!
+	}
+	printk(KERN_ALERT "Reboot approved, proceeding...\n");
+
 	kernel_restart_prepare(cmd);
 	do_kernel_restart_prepare();
 	migrate_to_reboot_cpu();
@@ -860,45 +912,7 @@ static int __init reboot_approval_init(void){
 }
 fs_initcall(reboot_approval_init);
 
-//reboot approval function
-static int wait_for_reboot_approval(void){
-    unsigned long flags;
-    int ret;
-    
-    spin_lock_irqsave(&reboot_approval_lock, flags);
-    reboot_request_pending = 1;
-    reboot_approval_status = 0;
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
-    
-    printk(KERN_ALERT "REBOOT REQUESTED! Write to /proc/reboot_approval to approve\n");
-    // printk(KERN_ALERT "Command: echo yes > /proc/reboot_approval\n");
-    
-    //wait for approval with 5 minute timeout
-    ret = wait_event_interruptible_timeout(
-        reboot_wait,
-        reboot_approval_status != 0,
-        300 * HZ
-    );
-    
-    spin_lock_irqsave(&reboot_approval_lock, flags);
-    reboot_request_pending = 0;
-    
-    if(ret == 0){
-        spin_unlock_irqrestore(&reboot_approval_lock, flags);
-        printk(KERN_WARNING "Reboot approval timeout - DENIED\n");
-        return -ETIMEDOUT;
-    } 
-	
-	else if(ret < 0){
-        spin_unlock_irqrestore(&reboot_approval_lock, flags);
-        return -EINTR;
-    }
-    
-    ret = (reboot_approval_status == 1) ? 0 : -EPERM;
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
-    
-    return ret;
-}
+
 
 
 
@@ -959,13 +973,13 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		cmd == LINUX_REBOOT_CMD_POWER_OFF ||
 		cmd == LINUX_REBOOT_CMD_RESTART2) {
 		
-		printk(KERN_ALERT "=== CALLING wait_for_reboot_approval ===\n");
-		int approval = wait_for_reboot_approval();
-		if (approval < 0) {
-			printk(KERN_ALERT "=== APPROVAL FAILED, ret=%d ===\n", approval);
-			return approval;
-		}
-		printk(KERN_ALERT "=== APPROVAL GRANTED ===\n");
+		// printk(KERN_ALERT "=== CALLING wait_for_reboot_approval ===\n");
+		// int approval = wait_for_reboot_approval();
+		// if (approval < 0) {
+		// 	printk(KERN_ALERT "=== APPROVAL FAILED, ret=%d ===\n", approval);
+		// 	return approval;
+		// }
+		// printk(KERN_ALERT "=== APPROVAL GRANTED ===\n");
 	}
 	//attempt 3 - sanchana END
 
