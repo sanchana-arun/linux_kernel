@@ -1505,13 +1505,13 @@ skip_approval:
 	// }
 	//approval check - END
 
-	//logging the information about the file being opened, the process opening it, and the user ID of the process
-	printk(KERN_INFO "FILE OPEN: %s by %s (PID %d, UID %d)\n",
-	       tmp->name,   //filename
-	       current->comm,    //process name
-	       current->pid, 
-	       current_uid().val); 
-	//logging info - end
+	// //logging the information about the file being opened, the process opening it, and the user ID of the process
+	// printk(KERN_INFO "FILE OPEN: %s by %s (PID %d, UID %d)\n",
+	//        tmp->name,   //filename
+	//        current->comm,    //process name
+	//        current->pid, 
+	//        current_uid().val); 
+	// //logging info - end
 
 
 	// //for blocking - START

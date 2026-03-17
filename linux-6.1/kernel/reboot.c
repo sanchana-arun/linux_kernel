@@ -306,57 +306,57 @@ static void do_kernel_restart_prepare(void)
  */
 
 
-//reboot approval function
-static int wait_for_reboot_approval(void){
-    unsigned long flags;
-    int ret;
+// //reboot approval function
+// static int wait_for_reboot_approval(void){
+//     unsigned long flags;
+//     int ret;
     
-    spin_lock_irqsave(&reboot_approval_lock, flags);
-    reboot_request_pending = 1;
-    reboot_approval_status = 0;
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//     spin_lock_irqsave(&reboot_approval_lock, flags);
+//     reboot_request_pending = 1;
+//     reboot_approval_status = 0;
+//     spin_unlock_irqrestore(&reboot_approval_lock, flags);
     
-    printk(KERN_ALERT "REBOOT REQUESTED! Write to /proc/reboot_approval to approve\n");
-    // printk(KERN_ALERT "Command: echo yes > /proc/reboot_approval\n");
+//     printk(KERN_ALERT "REBOOT REQUESTED! Write to /proc/reboot_approval to approve\n");
+//     // printk(KERN_ALERT "Command: echo yes > /proc/reboot_approval\n");
     
-    //wait for approval with 5 minute timeout
-    ret = wait_event_interruptible_timeout(
-        reboot_wait,
-        reboot_approval_status != 0,
-        300 * HZ
-    );
+//     //wait for approval with 5 minute timeout
+//     ret = wait_event_interruptible_timeout(
+//         reboot_wait,
+//         reboot_approval_status != 0,
+//         300 * HZ
+//     );
     
-    spin_lock_irqsave(&reboot_approval_lock, flags);
-    reboot_request_pending = 0;
+//     spin_lock_irqsave(&reboot_approval_lock, flags);
+//     reboot_request_pending = 0;
     
-    if(ret == 0){
-        spin_unlock_irqrestore(&reboot_approval_lock, flags);
-        printk(KERN_WARNING "Reboot approval timeout - DENIED\n");
-        return -ETIMEDOUT;
-    } 
+//     if(ret == 0){
+//         spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//         printk(KERN_WARNING "Reboot approval timeout - DENIED\n");
+//         return -ETIMEDOUT;
+//     } 
 	
-	else if(ret < 0){
-        spin_unlock_irqrestore(&reboot_approval_lock, flags);
-        return -EINTR;
-    }
+// 	else if(ret < 0){
+//         spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//         return -EINTR;
+//     }
     
-    ret = (reboot_approval_status == 1) ? 0 : -EPERM;
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//     ret = (reboot_approval_status == 1) ? 0 : -EPERM;
+//     spin_unlock_irqrestore(&reboot_approval_lock, flags);
     
-    return ret;
-}
+//     return ret;
+// }
 
 void kernel_restart(char *cmd)
 {
 
-	printk(KERN_ALERT "=== kernel_restart called ===\n");
+	// printk(KERN_ALERT "=== kernel_restart called ===\n");
 	
-	int approval = wait_for_reboot_approval();
-	if (approval < 0) {
-		printk(KERN_ALERT "Reboot denied by approval mechanism\n");
-		return;  // Don't reboot!
-	}
-	printk(KERN_ALERT "Reboot approved, proceeding...\n");
+	// int approval = wait_for_reboot_approval();
+	// if (approval < 0) {
+	// 	printk(KERN_ALERT "Reboot denied by approval mechanism\n");
+	// 	return;  // Don't reboot!
+	// }
+	// printk(KERN_ALERT "Reboot approved, proceeding...\n");
 
 	kernel_restart_prepare(cmd);
 	do_kernel_restart_prepare();
@@ -842,75 +842,75 @@ DEFINE_MUTEX(system_transition_mutex);
 // //Sanchana END
 
 
-//ATTEMPT 3
+// //ATTEMPT 3
 
-static ssize_t reboot_approval_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos){
-    char buf[10];
-    unsigned long flags;
+// static ssize_t reboot_approval_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos){
+//     char buf[10];
+//     unsigned long flags;
     
-    if (count > sizeof(buf) - 1)
-        return -EINVAL;
+//     if (count > sizeof(buf) - 1)
+//         return -EINVAL;
     
-    if (copy_from_user(buf, buffer, count))
-        return -EFAULT;
+//     if (copy_from_user(buf, buffer, count))
+//         return -EFAULT;
     
-    buf[count] = '\0';
+//     buf[count] = '\0';
     
-    spin_lock_irqsave(&reboot_approval_lock, flags);
+//     spin_lock_irqsave(&reboot_approval_lock, flags);
     
-    if (!reboot_request_pending) {
-        spin_unlock_irqrestore(&reboot_approval_lock, flags);
-        return -EINVAL;
-    }
+//     if (!reboot_request_pending) {
+//         spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//         return -EINVAL;
+//     }
     
-    if (strncmp(buf, "yes", 3) == 0 || buf[0] == '1') {
-        reboot_approval_status = 1;
-        printk(KERN_INFO "Reboot approved via /proc/reboot_approval\n");
-    } else {
-        reboot_approval_status = -1;
-        printk(KERN_INFO "Reboot denied via /proc/reboot_approval\n");
-    }
+//     if (strncmp(buf, "yes", 3) == 0 || buf[0] == '1') {
+//         reboot_approval_status = 1;
+//         printk(KERN_INFO "Reboot approved via /proc/reboot_approval\n");
+//     } else {
+//         reboot_approval_status = -1;
+//         printk(KERN_INFO "Reboot denied via /proc/reboot_approval\n");
+//     }
     
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
-    wake_up_interruptible(&reboot_wait);
+//     spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//     wake_up_interruptible(&reboot_wait);
     
-    return count;
-}
+//     return count;
+// }
 
-static int reboot_approval_show(struct seq_file *m, void *v){
-    unsigned long flags;
+// static int reboot_approval_show(struct seq_file *m, void *v){
+//     unsigned long flags;
     
-    spin_lock_irqsave(&reboot_approval_lock, flags);
+//     spin_lock_irqsave(&reboot_approval_lock, flags);
     
-    if (reboot_request_pending) {
-        seq_printf(m, "REBOOT PENDING - Write 'yes' to approve or 'no' to deny\n");
-    } else {
-        seq_printf(m, "No reboot pending\n");
-    }
+//     if (reboot_request_pending) {
+//         seq_printf(m, "REBOOT PENDING - Write 'yes' to approve or 'no' to deny\n");
+//     } else {
+//         seq_printf(m, "No reboot pending\n");
+//     }
     
-    spin_unlock_irqrestore(&reboot_approval_lock, flags);
-    return 0;
-}
+//     spin_unlock_irqrestore(&reboot_approval_lock, flags);
+//     return 0;
+// }
 
-static int reboot_approval_open(struct inode *inode, struct file *file){
-    return single_open(file, reboot_approval_show, NULL);
-}
+// static int reboot_approval_open(struct inode *inode, struct file *file){
+//     return single_open(file, reboot_approval_show, NULL);
+// }
 
-static const struct proc_ops reboot_approval_ops = {
-    .proc_open = reboot_approval_open,
-    .proc_read = seq_read,
-    .proc_write = reboot_approval_write,
-    .proc_lseek = seq_lseek,
-    .proc_release = single_release,
-};
+// static const struct proc_ops reboot_approval_ops = {
+//     .proc_open = reboot_approval_open,
+//     .proc_read = seq_read,
+//     .proc_write = reboot_approval_write,
+//     .proc_lseek = seq_lseek,
+//     .proc_release = single_release,
+// };
 
-static int __init reboot_approval_init(void){
-    printk(KERN_ALERT "=== REBOOT APPROVAL INIT CALLED ===\n");
-    proc_create("reboot_approval", 0644, NULL, &reboot_approval_ops);
-    printk(KERN_ALERT "=== /proc/reboot_approval CREATED ===\n");
-    return 0;
-}
-fs_initcall(reboot_approval_init);
+// static int __init reboot_approval_init(void){
+//     printk(KERN_ALERT "=== REBOOT APPROVAL INIT CALLED ===\n");
+//     proc_create("reboot_approval", 0644, NULL, &reboot_approval_ops);
+//     printk(KERN_ALERT "=== /proc/reboot_approval CREATED ===\n");
+//     return 0;
+// }
+// fs_initcall(reboot_approval_init);
 
 
 
@@ -966,22 +966,22 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 
 
 	//attempt 3 - sanchana START
-	printk(KERN_ALERT "=== REBOOT SYSCALL CALLED, cmd=%u ===\n", cmd);
+	// printk(KERN_ALERT "=== REBOOT SYSCALL CALLED, cmd=%u ===\n", cmd);
 
-	if (cmd == LINUX_REBOOT_CMD_RESTART ||
-		cmd == LINUX_REBOOT_CMD_HALT ||
-		cmd == LINUX_REBOOT_CMD_POWER_OFF ||
-		cmd == LINUX_REBOOT_CMD_RESTART2) {
+	// if (cmd == LINUX_REBOOT_CMD_RESTART ||
+	// 	cmd == LINUX_REBOOT_CMD_HALT ||
+	// 	cmd == LINUX_REBOOT_CMD_POWER_OFF ||
+	// 	cmd == LINUX_REBOOT_CMD_RESTART2) {
 		
-		// printk(KERN_ALERT "=== CALLING wait_for_reboot_approval ===\n");
-		// int approval = wait_for_reboot_approval();
-		// if (approval < 0) {
-		// 	printk(KERN_ALERT "=== APPROVAL FAILED, ret=%d ===\n", approval);
-		// 	return approval;
-		// }
-		// printk(KERN_ALERT "=== APPROVAL GRANTED ===\n");
-	}
-	//attempt 3 - sanchana END
+	// 	// printk(KERN_ALERT "=== CALLING wait_for_reboot_approval ===\n");
+	// 	// int approval = wait_for_reboot_approval();
+	// 	// if (approval < 0) {
+	// 	// 	printk(KERN_ALERT "=== APPROVAL FAILED, ret=%d ===\n", approval);
+	// 	// 	return approval;
+	// 	// }
+	// 	// printk(KERN_ALERT "=== APPROVAL GRANTED ===\n");
+	// }
+	// //attempt 3 - sanchana END
 
 	/*
 	 * If pid namespaces are enabled and the current task is in a child
