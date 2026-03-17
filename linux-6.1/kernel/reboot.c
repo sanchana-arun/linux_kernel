@@ -20,18 +20,20 @@
 #include <linux/uaccess.h>
 
 //adding
-#include <linux/umh.h>
-#include <linux/kobject.h>
-#include <linux/sysfs.h>
-#include <linux/init.h>
+// #include <linux/umh.h>
+// #include <linux/kobject.h>
+// #include <linux/sysfs.h>
+// #include <linux/init.h>
 
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
+// #include <linux/proc_fs.h>
+// #include <linux/seq_file.h>
 
-static DECLARE_WAIT_QUEUE_HEAD(reboot_wait);
-static int reboot_approval_status = 0;  // 0=waiting, 1=approved, -1=denied
-static DEFINE_SPINLOCK(reboot_approval_lock);
-static int reboot_request_pending = 0;
+
+//uncomment if needed - sanchana
+// static DECLARE_WAIT_QUEUE_HEAD(reboot_wait);
+// static int reboot_approval_status = 0;  // 0=waiting, 1=approved, -1=denied
+// static DEFINE_SPINLOCK(reboot_approval_lock);
+// static int reboot_request_pending = 0;
 
 /*
  * this indicates whether you can reboot with ctrl-alt-del: the default is yes
