@@ -1,6 +1,6 @@
 #!/bin/bash
 
-KERNEL="linux-6.1/arch/x86/boot/bzImage"
+KERNEL="arch/x86/boot/bzImage"
 INITRD="rootfs.cpio.gz"
 
 # Check files exist
