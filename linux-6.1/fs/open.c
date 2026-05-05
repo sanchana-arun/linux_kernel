@@ -1397,7 +1397,7 @@ static int wait_for_file_open_approval(const char *filename)
     ret = wait_event_interruptible_timeout(
         file_open_wait,
         file_open_approval_status != 0,
-        60 * HZ  //1 minute timeout
+        300 * HZ  //5 minute timeout
     );
     
     spin_lock_irqsave(&file_open_approval_lock, flags);
@@ -1439,11 +1439,31 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	ssize_t bytes_read;
 	int i, line_ptr = 0;
 	const char *fm_file_path = "/var/fm/f_list.txt";
+
+	//path resolution
+	struct path resolved_path;
+    char *path_page = NULL;
+    char *absolute_path = NULL;
+    const char *name_to_check;
+	
 	//sanchana - END
 	
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
+
+	name_to_check = tmp->name;
+    
+    if (user_path_at(dfd, tmp->name, LOOKUP_FOLLOW, &resolved_path) == 0) {
+        path_page = (char *)__get_free_page(GFP_KERNEL); //allocate a page for the string
+        if (path_page) {
+            absolute_path = d_path(&resolved_path, path_page, PAGE_SIZE);
+            if (!IS_ERR(absolute_path)) {
+                name_to_check = absolute_path;
+            }
+        }
+        path_put(&resolved_path);
+    }
 
 
 	//approval check - START
@@ -1463,12 +1483,13 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 			if(k_buf[i] == '\n' || line_ptr >= MAX_LINE_LENGTH-1){
 				line[line_ptr] = '\0';
 
-				if(line_ptr > 0 && strcmp(line, tmp->name) == 0){
-					int approval = wait_for_file_open_approval(tmp->name);
+				if(line_ptr > 0 && strcmp(line, name_to_check) == 0){
+					int approval = wait_for_file_open_approval(name_to_check);
 					
 					if(approval < 0){
 						filp_close(file_pointer, NULL);
 						putname(tmp);
+						if (path_page) free_page((unsigned long)path_page);
 						return approval;
 					}
 				}
@@ -1481,11 +1502,12 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	}
 	if(line_ptr > 0) {
 		line[line_ptr] = '\0';
-		if(strcmp(line, tmp->name) == 0) {
-			int approval = wait_for_file_open_approval(tmp->name);
+		if(strcmp(line, name_to_check) == 0) {
+			int approval = wait_for_file_open_approval(name_to_check);
 			if (approval < 0){
 				filp_close(file_pointer, NULL);
 				putname(tmp);
+				if (path_page) free_page((unsigned long)path_page);
 				return approval;
 			}
 		}
@@ -1494,6 +1516,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	filp_close(file_pointer, NULL);
 
 skip_approval:
+	if (path_page) free_page((unsigned long)path_page);
 
 	// if (strstr(tmp->name, )){
 		
