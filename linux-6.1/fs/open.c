@@ -1468,10 +1468,6 @@ static long do_sys_openat2(int dfd, const char __user *filename,
         }
         path_put(&resolved_path);
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> e48a4b8b4 (cleaning up)
 
 	//approval check - START - sanchana
 	file_pointer = filp_open(fm_file_path, O_RDONLY, 0);
@@ -1522,10 +1518,6 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 
 skip_approval:
 	if (path_page) free_page((unsigned long)path_page);
-<<<<<<< HEAD
-=======
-//approval check - END - sanchana
->>>>>>> e48a4b8b4 (cleaning up)
 
 	//existing - start
 	fd = get_unused_fd_flags(how->flags);
