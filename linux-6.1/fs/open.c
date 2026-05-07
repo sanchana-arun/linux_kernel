@@ -1424,7 +1424,6 @@ static int wait_for_file_open_approval(const char *filename)
 
 //modifying this - sanchana - START
 
-// (3) This is the third step,  
 static long do_sys_openat2(int dfd, const char __user *filename,
 			   struct open_how *how)
 {
@@ -1449,16 +1448,13 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	
 	//sanchana - END
 	
-	// existing - start
 	tmp = getname(filename);
 	if (IS_ERR(tmp))
 		return PTR_ERR(tmp);
-	//existing - end
-	
 
 	name_to_check = tmp->name;
     
-    if (user_path_at(dfd, tmp->name, LOOKUP_FOLLOW, &resolved_path) == 0) {
+    if (user_path_at(dfd, filename, LOOKUP_FOLLOW, &resolved_path) == 0) {
         path_page = (char *)__get_free_page(GFP_KERNEL); //allocate a page for the string
         if (path_page) {
             absolute_path = d_path(&resolved_path, path_page, PAGE_SIZE);
@@ -1469,7 +1465,10 @@ static long do_sys_openat2(int dfd, const char __user *filename,
         path_put(&resolved_path);
     }
 
-	//approval check - START - sanchana
+
+	//approval check - START
+	//in /var/fm/f_list, iterate through each line and store them in a temporary variable and string match them with tmp->name and block accordingly
+
 	file_pointer = filp_open(fm_file_path, O_RDONLY, 0);
 
 	if(IS_ERR(file_pointer)){
@@ -1481,6 +1480,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 
 	while((bytes_read = kernel_read(file_pointer, k_buf, sizeof(k_buf), &pos)) > 0){
 		for(i = 0; i < bytes_read; i++){
+			if (k_buf[i] == '\r') continue;
 			if(k_buf[i] == '\n' || line_ptr >= MAX_LINE_LENGTH-1){
 				line[line_ptr] = '\0';
 
@@ -1519,7 +1519,41 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 skip_approval:
 	if (path_page) free_page((unsigned long)path_page);
 
-	//existing - start
+	// if (strstr(tmp->name, )){
+		
+	// 	int approval = wait_for_file_open_approval(tmp->name);
+	// 	if (approval < 0){
+	// 		putname(tmp);
+	// 		return approval;
+	// 	}
+	// }
+	//approval check - END
+
+	// //logging the information about the file being opened, the process opening it, and the user ID of the process
+	// printk(KERN_INFO "FILE OPEN: %s by %s (PID %d, UID %d)\n",
+	//        tmp->name,   //filename
+	//        current->comm,    //process name
+	//        current->pid, 
+	//        current_uid().val); 
+	// //logging info - end
+
+
+	// //for blocking - START
+	// if (strstr(tmp->name, "/etc/shadow") || 
+	//     strstr(tmp->name, "/etc/passwd")) {
+		
+	// 	//check if user is root
+	// 	if (!capable(CAP_SYS_ADMIN)) {
+	// 		printk(KERN_ALERT "BLOCKED: %s (PID %d) tried to open %s\n",
+	// 		       current->comm, current->pid, tmp->name);
+	// 		putname(tmp);
+	// 		return -EACCES; //permission denied
+	// 	}
+		
+	// 	printk(KERN_INFO "ALLOWED: Root user opening %s\n", tmp->name);
+	// }
+	// //for blocking - END
+
 	fd = get_unused_fd_flags(how->flags);
 	if (fd >= 0) {
 		struct file *f = do_filp_open(dfd, tmp, &op);
@@ -1533,18 +1567,15 @@ skip_approval:
 	}
 	putname(tmp);
 	return fd;
-	//existing
 }
 
-// (2) This is the next step
 long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 {
 	struct open_how how = build_open_how(flags, mode);
 	return do_sys_openat2(dfd, filename, &how);
 }
 
-// (1) This is the starting point, it checks for large file flag common in 64 bit systems
-// and passes on that information to do_sys_open()
+
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
 	if (force_o_largefile())
