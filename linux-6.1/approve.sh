@@ -1,15 +1,11 @@
 #!/bin/bash
+# Usage: approve [filename] [seconds]
 
-PROC_FILE="/proc/file_open_approval"
+FILE=$1
+SECONDS=$2
+CURRENT_TIME=$(date +%s)
+EXPIRY_TIME=$(($CURRENT_TIME + $SECONDS))
 
-# wait for a pending request
-while true; do
-    STATUS=$(cat "$PROC_FILE")
-    if echo "$STATUS" | grep -q "FILE OPEN PENDING"; then
-        echo "$STATUS"
-        read -p "Approve? (yes/no): " RESPONSE
-        echo "$RESPONSE" > "$PROC_FILE"
-        break
-    fi
-    sleep 0.5
-done
+# Write the rule to the file the daemon is watching
+echo "$FILE $EXPIRY_TIME" >> /var/fm/active_rules.txt
+echo "Rule added: $FILE is approved for $SECONDS seconds."
